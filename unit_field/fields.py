@@ -62,7 +62,10 @@ except ImportError:
     from md5 import new as md5
 
 def md5_hexdigest(value):
-    return md5(value).hexdigest()
+    try:
+        return md5(value).hexdigest()
+    except TypeError:
+        return md5(value.encode('utf8')).hexdigest()
 
 def get_factor(units, unit_id):
     """
