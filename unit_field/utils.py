@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
+import six
+import unicodedata
+
 from django.conf import settings
 from django.utils.formats import get_format
-from django.utils import six
-import unicodedata
 
 """
 Use Django's django.utils.formats.sanitize_formats of Version 1.8
