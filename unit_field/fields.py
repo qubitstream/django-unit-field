@@ -1,65 +1,66 @@
 # -*- coding: utf-8 -*-
-from unit_field.utils import sanitize_separators
 from django.db.models import FloatField, CharField as ModelCharField
 from django.forms import CharField
-from unit_field.units import (Unit, UnitValueCreator,
-    UNITS_PERCENTAGE,
-    UNITS_LENGTH,
-    UNITS_SQUARE_MEASURE,
-    UNITS_SOLID_MEASURE,
-    UNITS_MASS,
-    UNITS_TIME,
-    UNITS_TIME2,
-    UNITS_ELECTRIC_CURRENT,
-    UNITS_TEMPERATURE,
-    UNITS_AMOUNT_OF_SUBSTANCE,
-    UNITS_LUMINOUS_INTENSITY,
-
-    UNITS_ACCELERATION,
-    UNITS_ANGLE,
-    UNITS_CRACKLE,
-    UNITS_CURRENT,
-    UNITS_DENSITY,
-    UNITS_FORCE,
-    UNITS_INERTIA_TORQUE,
-    UNITS_JERK,
-    UNITS_POTENTIAL,
-    UNITS_SNAP,
-    UNITS_SPEED,
-    UNITS_TORSION,
-    UNITS_TORQUE,
-    UNITS_VELOCITY,
-
-    UNITS_POWER,
-    UNITS_THERMAL_RESISTANCE,
-    UNITS_HEAT_TRANSFER_RESISTANCE,
-    UNITS_HEAT_CONDUCTANCE,
-    UNITS_HEAT_CAPACITY,
-    UNITS_SPECIFIC_HEAT_CAPACITY,
-    UNITS_MOTOR_CONSTANT,
-    UNITS_FORCE_CONSTANT,
-    UNITS_ELECTRICAL_TIME_CONSTANT,
-    UNITS_POTENTIAL_CONSTANT,
-    UNITS_ELECTRICAL_RESISTANCE,
-    UNITS_INDUCTANCE,
-
-    UNITS_ANGLE_VELOCITY,
-    UNITS_ANGLE_ACCELERATION,
-    UNITS_ANGLE_JERK,
-    UNITS_ANGLE_SNAP,
-    UNITS_ANGLE_CRACKLE,
-
-    UNITS_VISCOSITY,
-    UNITS_FLOW_RATE,
-)
-
-
+from django.template.defaultfilters import floatformat
+from django.utils.safestring import mark_safe
+from django.utils.translation import ugettext_lazy as _
 from unit_field import forms
+from unit_field.utils import sanitize_separators
 
 try:
     from hashlib import md5
 except ImportError:
     from md5 import new as md5
+from unit_field.units import (UnitValueCreator,
+                              UNITS_PERCENTAGE,
+                              UNITS_LENGTH,
+                              UNITS_SQUARE_MEASURE,
+                              UNITS_SOLID_MEASURE,
+                              UNITS_MASS,
+                              UNITS_TIME,
+                              UNITS_TIME2,
+                              UNITS_TEMPERATURE,
+                              UNITS_AMOUNT_OF_SUBSTANCE,
+                              UNITS_LUMINOUS_INTENSITY,
+
+                              UNITS_ACCELERATION,
+                              UNITS_ANGLE,
+                              UNITS_CRACKLE,
+                              UNITS_CURRENT,
+                              UNITS_DENSITY,
+                              UNITS_FORCE,
+                              UNITS_INERTIA_TORQUE,
+                              UNITS_JERK,
+                              UNITS_POTENTIAL,
+                              UNITS_SNAP,
+                              UNITS_SPEED,
+                              UNITS_TORSION,
+                              UNITS_TORQUE,
+                              UNITS_VELOCITY,
+
+                              UNITS_POWER,
+                              UNITS_THERMAL_RESISTANCE,
+                              UNITS_HEAT_TRANSFER_RESISTANCE,
+                              UNITS_HEAT_CONDUCTANCE,
+                              UNITS_HEAT_CAPACITY,
+                              UNITS_SPECIFIC_HEAT_CAPACITY,
+                              UNITS_MOTOR_CONSTANT,
+                              UNITS_FORCE_CONSTANT,
+                              UNITS_ELECTRICAL_TIME_CONSTANT,
+                              UNITS_POTENTIAL_CONSTANT,
+                              UNITS_ELECTRICAL_RESISTANCE,
+                              UNITS_INDUCTANCE,
+
+                              UNITS_ANGLE_VELOCITY,
+                              UNITS_ANGLE_ACCELERATION,
+                              UNITS_ANGLE_JERK,
+                              UNITS_ANGLE_SNAP,
+                              UNITS_ANGLE_CRACKLE,
+
+                              UNITS_VISCOSITY,
+                              UNITS_FLOW_RATE,
+                              )
+
 
 def md5_hexdigest(value):
     try:
@@ -214,6 +215,34 @@ class UnitField(FloatField):
 
         return base_unit.id
 
+    @staticmethod
+    def _html(instance, name):
+        _field = name
+        _label = _(instance._meta.get_field(_field).verbose_name)
+
+        _unit_field = u'{}_unit'.format(name)
+        _val = floatformat(getattr(instance, _field), 2)
+        _method_name = u'get_%s_display' % _unit_field
+        _unit_method = getattr(instance, _method_name)
+        return mark_safe(u'<div class="row-fluid">'
+                         '<div class="span6"><span class="readonly-label">%s:</span></div>'
+                         '<div class="span6"><strong class="readonly-value">%s %s</strong></div>'
+                         '</div>' % (_label, _val, _unit_method(),))
+
+    @staticmethod
+    def _label_key(instance, name):
+        _field = u'{}_input'.format(name)
+        return instance._meta.get_field(_field).verbose_name
+
+    @staticmethod
+    def _label_value(instance, name):
+        _field = u'{}_input'.format(name)
+        _unit_field = u'{}_unit'.format(name)
+        _val = getattr(instance, _field)
+        _method_name = u'get_%s_display' % _unit_field
+        _unit_method = getattr(instance, _method_name)
+        return u'%s %s' % (_val, _unit_method(),)
+
     def __init__(self, *args, **kwargs):
         if 'choices' in kwargs:
             raise TypeError("%s invalid attribute 'choices'" % (
@@ -267,6 +296,14 @@ class UnitField(FloatField):
         self.key = md5_hexdigest(self.name)
 
         field = UnitValueCreator(self)
+
+        # add the properties ending with '..._html', '..._label_key', '..._label_value'
+        cls.add_to_class(
+            '{0.name}_html'.format(self), property(lambda instance: UnitField._html(instance, self.name)))
+        cls.add_to_class(
+            '{0.name}_label_key'.format(self), property(lambda instance: UnitField._label_key(instance, self.name)))
+        cls.add_to_class(
+            '{0.name}_label_value'.format(self), property(lambda instance: UnitField._label_value(instance, self.name)))
 
         setattr(cls, name, field)
 
