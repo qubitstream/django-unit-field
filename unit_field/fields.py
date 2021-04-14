@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from django.db.models import FloatField, CharField as ModelCharField
 from django.forms import CharField
 from django.template.defaultfilters import floatformat
@@ -61,12 +63,15 @@ from unit_field.units import (UnitValueCreator,
                               UNITS_FLOW_RATE,
                               )
 
+logger = logging.getLogger(__name__)
+
 
 def md5_hexdigest(value):
     try:
         return md5(value).hexdigest()
     except TypeError:
         return md5(value.encode('utf8')).hexdigest()
+
 
 def get_factor(units, unit_id):
     """
@@ -80,6 +85,7 @@ def get_factor(units, unit_id):
             if unit.to_base_function:
                 return unit.to_base_function
             return unit.factor
+
 
 class UnitInputField(FloatField):
 
@@ -108,11 +114,12 @@ class UnitInputField(FloatField):
 
     def formfield(self, **kwargs):
         if self.auto_convert:
-            defaults = {'form_class': forms.UnitInputField }
+            defaults = {'form_class': forms.UnitInputField}
         else:
-            defaults = {'form_class': CharField }
+            defaults = {'form_class': CharField}
         defaults.update(kwargs)
         return super(UnitInputField, self).formfield(**defaults)
+
 
 class CalculatedFloatField(FloatField):
     """
@@ -160,6 +167,7 @@ class CalculatedFloatField(FloatField):
         else:
             setattr(model_instance, self.attname, 0.0)
         return getattr(model_instance, self.attname)
+
 
 class UnitField(FloatField):
     """
@@ -224,10 +232,17 @@ class UnitField(FloatField):
         _val = floatformat(getattr(instance, _field), 2)
         _method_name = u'get_%s_display' % _unit_field
         _unit_method = getattr(instance, _method_name)
+        try:
+            _unit_method = getattr(instance, _method_name)
+            _unit_method_val = _unit_method()
+        except Exception as excp:
+            logger.debug(
+                '{0!r}: Using unit value directly for "{1}" because of error: {2}'.format(instance, name, excp))
+            _unit_method_val = getattr(instance, _unit_field)
         return mark_safe(u'<div class="row-fluid">'
                          '<div class="span6"><span class="readonly-label">%s:</span></div>'
                          '<div class="span6"><strong class="readonly-value">%s %s</strong></div>'
-                         '</div>' % (_label, _val, _unit_method(),))
+                         '</div>' % (_label, _val, _unit_method_val,))
 
     @staticmethod
     def _label_key(instance, name):
@@ -240,8 +255,14 @@ class UnitField(FloatField):
         _unit_field = u'{}_unit'.format(name)
         _val = getattr(instance, _field)
         _method_name = u'get_%s_display' % _unit_field
-        _unit_method = getattr(instance, _method_name)
-        return u'%s %s' % (_val, _unit_method(),)
+        try:
+            _unit_method = getattr(instance, _method_name)
+            _label_value = u'%s %s' % (_val, _unit_method(),)
+        except Exception as excp:
+            logger.debug(
+                '{0!r}: Using unit value directly for "{1}" because of error: {2}'.format(instance, name, excp))
+            _label_value = _val
+        return _label_value
 
     def __init__(self, *args, **kwargs):
         if 'choices' in kwargs:
@@ -263,7 +284,7 @@ class UnitField(FloatField):
         kwargs['default'] = self.default
 
         self.default_unit = kwargs.pop('default_unit',
-            self.get_base_unit_id())
+                                       self.get_base_unit_id())
         self.update_choices()
         super(UnitField, self).__init__(*args, **kwargs)
 
@@ -282,15 +303,15 @@ class UnitField(FloatField):
 
         # self.unit_field = CharField(default=self.default_unit, choices=self.choices)
         self.unit_field = ModelCharField(max_length=10,
-            default=self.default_unit,
-            choices=self.choices)
+                                         default=self.default_unit,
+                                         choices=self.choices)
         cls.add_to_class("%s_unit" % (self.name,), self.unit_field)
 
         self.value_field = CalculatedFloatField(default=0.0,
-	    db_index=self.db_index,
-            units=self.units,
-            blank=self.blank,
-            null=self.null)
+                                                db_index=self.db_index,
+                                                units=self.units,
+                                                blank=self.blank,
+                                                null=self.null)
         cls.add_to_class("%s_value" % (self.name,), self.value_field)
 
         self.key = md5_hexdigest(self.name)
@@ -320,112 +341,148 @@ class UnitField(FloatField):
 
 # Fields for Base Units
 
+
 class LengthField(UnitField):
     units = UNITS_LENGTH
+
 
 class SquareMeasureField(UnitField):
     units = UNITS_SQUARE_MEASURE
 
+
 class SolidMeasureField(UnitField):
     units = UNITS_SOLID_MEASURE
+
 
 class MassField(UnitField):
     units = UNITS_MASS
 
+
 class TimeField(UnitField):
     units = UNITS_TIME
+
 
 class Time2Field(UnitField):
     units = UNITS_TIME2
 
+
 class TemperatureField(UnitField):
     units = UNITS_TEMPERATURE
 
+
 class AmountOfSubstanceField(UnitField):
     units = UNITS_AMOUNT_OF_SUBSTANCE
+
 
 class LuminousIntensityField(UnitField):
     units = UNITS_LUMINOUS_INTENSITY
 
 # Fields for Derived Units
 
+
 class AccelerationField(UnitField):
     units = UNITS_ACCELERATION
+
 
 class AngleField(UnitField):
     units = UNITS_ANGLE
 
+
 class CrackleField(UnitField):
     units = UNITS_CRACKLE
+
 
 class CurrentField(UnitField):
     units = UNITS_CURRENT
 
+
 class DensityField(UnitField):
     units = UNITS_DENSITY
+
 
 class ForceField(UnitField):
     units = UNITS_FORCE
 
+
 class InertiaTorqueField(UnitField):
     units = UNITS_INERTIA_TORQUE
+
 
 class JerkField(UnitField):
     units = UNITS_JERK
 
+
 class PotentialField(UnitField):
     units = UNITS_POTENTIAL
+
 
 class SnapField(UnitField):
     units = UNITS_SNAP
 
+
 class SpeedField(UnitField):
     units = UNITS_SPEED
+
 
 class TorqueField(UnitField):
     units = UNITS_TORQUE
 
+
 class VelocityField(UnitField):
     units = UNITS_VELOCITY
+
 
 class TorsionField(UnitField):
     units = UNITS_TORSION
 
+
 class PowerField(UnitField):
     units = UNITS_POWER
+
 
 class ThermalResistanceField(UnitField):
     units = UNITS_THERMAL_RESISTANCE
 
+
 class ElectricalTimeConstantField(UnitField):
     units = UNITS_ELECTRICAL_TIME_CONSTANT
+
 
 class MotorConstantField(UnitField):
     units = UNITS_MOTOR_CONSTANT
 
+
 class ForceConstantField(UnitField):
     units = UNITS_FORCE_CONSTANT
+
 
 class PotentialConstantField(UnitField):
     units = UNITS_POTENTIAL_CONSTANT
 
+
 class ResistanceField(UnitField):
     units = UNITS_ELECTRICAL_RESISTANCE
+
 
 class InductanceField(UnitField):
     units = UNITS_INDUCTANCE
 
+
 class AngleVelocityField(UnitField):
     units = UNITS_ANGLE_VELOCITY
+
 
 class AngleAccelerationField(UnitField):
     units = UNITS_ANGLE_ACCELERATION
 
+
 class AngleJerkField(UnitField):
     units = UNITS_ANGLE_JERK
 
+
 class AngleSnapField(UnitField):
     units = UNITS_ANGLE_SNAP
+
 
 class AngleCrackleField(UnitField):
     units = UNITS_ANGLE_CRACKLE
@@ -434,27 +491,34 @@ class AngleCrackleField(UnitField):
 class HeatTransferResistanceField(UnitField):
     units = UNITS_HEAT_TRANSFER_RESISTANCE
 
+
 class HeatConductanceField(UnitField):
     units = UNITS_HEAT_CONDUCTANCE
+
 
 class HeatCapacityField(UnitField):
     units = UNITS_HEAT_CAPACITY
 
+
 class SpecificHeatCapacityField(UnitField):
     units = UNITS_SPECIFIC_HEAT_CAPACITY
+
 
 class ViscosityField(UnitField):
     units = UNITS_VISCOSITY
 
+
 class FlowRateField(UnitField):
     units = UNITS_FLOW_RATE
+
 
 class PercentageField(UnitField):
     units = UNITS_PERCENTAGE
 
+
 try:
     from south.modelsinspector import add_introspection_rules
-    rules = [((CalculatedFloatField, ), [], {}),]
+    rules = [((CalculatedFloatField, ), [], {}), ]
     add_introspection_rules(rules, [
         "^unit_field\.fields"])
 except ImportError:
