@@ -302,6 +302,7 @@ class UnitField(FloatField):
         cls.add_to_class("%s_input" % (self.name,), self.input_field)
 
         # self.unit_field = CharField(default=self.default_unit, choices=self.choices)
+        self.update_choices()
         self.unit_field = ModelCharField(max_length=10,
                                          default=self.default_unit,
                                          choices=self.choices)
