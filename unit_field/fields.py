@@ -5,7 +5,9 @@ from django.db.models import FloatField, CharField as ModelCharField
 from django.forms import CharField
 from django.template.defaultfilters import floatformat
 from django.utils.safestring import mark_safe
+from django.utils.html import conditional_escape
 from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import FieldDoesNotExist
 from unit_field import forms
 from unit_field.utils import sanitize_separators
 
@@ -226,10 +228,19 @@ class UnitField(FloatField):
     @staticmethod
     def _html(instance, name):
         _field = name
-        _label = _(instance._meta.get_field(_field).verbose_name)
+        try:
+            _label = _(instance._meta.get_field(_field).verbose_name)
+        except FieldDoesNotExist:
+            try:
+                _label = instance._meta.get_field(_field + '_input').verbose_name
+            except Exception:
+                _label = _field
 
         _unit_field = u'{}_unit'.format(name)
-        _val = floatformat(getattr(instance, _field), 2)
+        try:
+            _val = floatformat(getattr(instance, _field + '_input'), 2)
+        except Exception as excp:
+            _val = floatformat(getattr(instance, _field), 2)
         _method_name = u'get_%s_display' % _unit_field
         _unit_method = getattr(instance, _method_name)
         try:
@@ -240,9 +251,9 @@ class UnitField(FloatField):
                 '{0!r}: Using unit value directly for "{1}" because of error: {2}'.format(instance, name, excp))
             _unit_method_val = getattr(instance, _unit_field)
         return mark_safe(u'<div class="row-fluid">'
-                         '<div class="span6"><span class="readonly-label">%s:</span></div>'
-                         '<div class="span6"><strong class="readonly-value">%s %s</strong></div>'
-                         '</div>' % (_label, _val, _unit_method_val,))
+                         '<div class="span6"><span class="readonly-label" data-name="{3}">{0}:</span></div>'
+                         '<div class="span6"><strong class="readonly-value">{1} {2}</strong></div>'
+                         '</div>'.format(_label, _val, conditional_escape(_unit_method_val), _field))
 
     @staticmethod
     def _label_key(instance, name):
